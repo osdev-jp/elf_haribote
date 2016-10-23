@@ -1,6 +1,7 @@
 /* コンソール関係 */
 
 #include "bootpack.h"
+#include "elf.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -342,34 +343,114 @@ void cmd_langmode(struct CONSOLE *cons, char *cmdline)
 	return;
 }
 
+#define EHDR_TO_SHDR(ehdr) (Elf32_Shdr*)((char*)(ehdr) + (ehdr)->e_shoff)
+#define EHDR_TO_PHDR(ehdr) (Elf32_Phdr*)((char*)(ehdr) + (ehdr)->e_phoff)
+#define IS_DATA_SEGM(p_flags) (!((p_flags) & PF_X))
+
+static Elf32_Size calc_elf_datasize(Elf32_Ehdr* ehdr)
+{
+	Elf32_Addr max_vaddr = 0;
+	Elf32_Size datasize = 0;
+	Elf32_Phdr* phdr = EHDR_TO_PHDR(ehdr);
+	int i;
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (IS_DATA_SEGM(phdr[i].p_flags) && max_vaddr < phdr[i].p_vaddr) {
+			max_vaddr = phdr[i].p_vaddr;
+			datasize = max_vaddr + phdr[i].p_memsz;
+		}
+	}
+	return datasize;
+}
+
+static void copy_elf_data(void* datasegm, Elf32_Ehdr* ehdr)
+{
+	Elf32_Phdr* phdr = EHDR_TO_PHDR(ehdr);
+	int i;
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		if (IS_DATA_SEGM(phdr[i].p_flags) && phdr[i].p_filesz > 0) {
+			memcpy((char*)datasegm + phdr[i].p_vaddr,
+				(char*)ehdr + phdr[i].p_offset,
+				phdr[i].p_filesz);
+		}
+	}
+}
+
+static Elf32_Size calc_elf_esp(Elf32_Ehdr* ehdr)
+{
+	Elf32_Shdr* shdr = EHDR_TO_SHDR(ehdr);
+	char* strtab = (char*)ehdr + shdr[ehdr->e_shstrndx].sh_offset;
+	int i;
+	for (i = 0; i < ehdr->e_shnum; i++) {
+		if (strcmp(".stack", strtab + shdr[i].sh_name) == 0) {
+			return shdr[i].sh_size;
+		}
+	}
+	return 0;
+}
+
+static void app_exec(struct TASK* task,
+	void* text, int text_size, void* data, int data_size,
+	int eip, int cs, int esp, int ds)
+{
+	struct MEMMAN *memman = (struct MEMMAN *) MEMMAN_ADDR;
+	struct SHTCTL *shtctl = (struct SHTCTL *) *((int *) 0x0fe4);
+	int i;
+	struct SHEET *sht;
+
+	task->ds_base = (int) data;
+	set_segmdesc(task->ldt + 0, text_size - 1, (int) text, AR_CODE32_ER + 0x60);
+	set_segmdesc(task->ldt + 1, data_size - 1, (int) data, AR_DATA32_RW + 0x60);
+	start_app(eip, cs, esp, ds, &(task->tss.esp0));
+
+	for (i = 0; i < MAX_SHEETS; i++) {
+		sht = shtctl->sheets0 + i;
+		if ((sht->flags & 0x11) == 0x11 && sht->task == task) {
+			/* アプリが開きっぱなしにした下じきを発見 */
+			sheet_free(sht);	/* 閉じる */
+		}
+	}
+	for (i = 0; i < 8; i++) {	/* クローズしてないファイルをクローズ */
+		if (task->fhandle[i].buf != 0) {
+			memman_free(memman, (int) task->fhandle[i].buf, task->fhandle[i].size);
+			task->fhandle[i].buf = 0;
+		}
+	}
+	timer_cancelall(&task->fifo);
+	task->langbyte1 = 0;
+}
+
 int cmd_app(struct CONSOLE *cons, int *fat, char *cmdline)
 {
 	struct MEMMAN *memman = (struct MEMMAN *) MEMMAN_ADDR;
 	struct FILEINFO *finfo;
 	char name[13], *p, *q;
 	struct TASK *task = task_now();
-	int i, segsiz, datsiz, esp, dathrb, appsiz;
+	int i, namelen, has_dot, segsiz, datsiz, esp, dathrb, appsiz;
 	struct SHTCTL *shtctl;
 	struct SHEET *sht;
 
 	/* コマンドラインからファイル名を生成 */
-	for (i = 0; i < 8; i++) {
+	has_dot = 0;
+	for (i = 0; i < 12; i++) {
 		if (cmdline[i] <= ' ') {
 			break;
+		} else if (cmdline[i] == '.') {
+			has_dot = 1;
 		}
 		name[i] = cmdline[i];
 	}
 	name[i] = 0; /* とりあえずファイル名の後ろを0にする */
+	namelen = i;
 
 	/* ファイルを探す */
 	finfo = file_search(name, (struct FILEINFO *) (ADR_DISKIMG + 0x002600), 224);
-	if (finfo == 0) {
+	if (finfo == 0 && !has_dot && namelen <= 8) {
 		/* 見つからなかったので後ろに".HRB"をつけてもう一度探してみる */
-		name[i    ] = '.';
-		name[i + 1] = 'H';
-		name[i + 2] = 'R';
-		name[i + 3] = 'B';
-		name[i + 4] = 0;
+		memcpy(name + namelen, ".HRB", 5);
+		finfo = file_search(name, (struct FILEINFO *) (ADR_DISKIMG + 0x002600), 224);
+	}
+	if (finfo == 0 && !has_dot && namelen <= 8) {
+		memcpy(name + namelen, ".ELF", 5);
 		finfo = file_search(name, (struct FILEINFO *) (ADR_DISKIMG + 0x002600), 224);
 	}
 
@@ -383,30 +464,23 @@ int cmd_app(struct CONSOLE *cons, int *fat, char *cmdline)
 			datsiz = *((int *) (p + 0x0010));
 			dathrb = *((int *) (p + 0x0014));
 			q = (char *) memman_alloc_4k(memman, segsiz);
-			task->ds_base = (int) q;
-			set_segmdesc(task->ldt + 0, appsiz - 1, (int) p, AR_CODE32_ER + 0x60);
-			set_segmdesc(task->ldt + 1, segsiz - 1, (int) q, AR_DATA32_RW + 0x60);
-			for (i = 0; i < datsiz; i++) {
-				q[esp + i] = p[dathrb + i];
-			}
-			start_app(0x1b, 0 * 8 + 4, esp, 1 * 8 + 4, &(task->tss.esp0));
-			shtctl = (struct SHTCTL *) *((int *) 0x0fe4);
-			for (i = 0; i < MAX_SHEETS; i++) {
-				sht = &(shtctl->sheets0[i]);
-				if ((sht->flags & 0x11) == 0x11 && sht->task == task) {
-					/* アプリが開きっぱなしにした下じきを発見 */
-					sheet_free(sht);	/* 閉じる */
-				}
-			}
-			for (i = 0; i < 8; i++) {	/* クローズしてないファイルをクローズ */
-				if (task->fhandle[i].buf != 0) {
-					memman_free(memman, (int) task->fhandle[i].buf, task->fhandle[i].size);
-					task->fhandle[i].buf = 0;
-				}
-			}
-			timer_cancelall(&task->fifo);
+			memcpy(q + esp, p + dathrb, datsiz);
+			app_exec(task, p, appsiz, q, segsiz, 0x1b, 0 * 8 + 4, esp, 1 * 8 + 4);
 			memman_free_4k(memman, (int) q, segsiz);
-			task->langbyte1 = 0;
+		} else if (appsiz >= sizeof(Elf32_Ehdr) && IS_ELF(*(Elf32_Ehdr*)p)) {
+			Elf32_Ehdr* ehdr = (Elf32_Ehdr*)p;
+
+			esp = calc_elf_esp(ehdr);
+			if (esp == 0) {
+				cons_putstr0(cons, "no stack section\n");
+				goto elf_fin;
+			}
+			segsiz = calc_elf_datasize(ehdr);
+			q = (char *) memman_alloc_4k(memman, segsiz);
+			copy_elf_data(q, ehdr);
+			app_exec(task, p, appsiz, q, segsiz, ehdr->e_entry, 0 * 8 + 4, esp, 1 * 8 + 4);
+			memman_free_4k(memman, (int) q, segsiz);
+elf_fin:;
 		} else {
 			cons_putstr0(cons, ".hrb file format error.\n");
 		}

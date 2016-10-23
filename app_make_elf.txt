@@ -17,7 +17,7 @@ DEL      = del
 
 NASM     = #(TOOLPATH86)nasm.exe
 CC       = $(ELFGCCPATH)i386-elf-gcc-4.9.2.exe -I$(INCPATH) -I../ -Os -Wall -fleading-underscore -fno-unwind-tables -fno-asynchronous-unwind-tables
-LD       = $(ELFGCCPATH)ld.exe -L$(APILIBPATH)
+LD       = $(ELFGCCPATH)ld.exe -L$(APILIBPATH) --nmagic
 LDSCRIPT = ../haribote_elf.lds
 
 

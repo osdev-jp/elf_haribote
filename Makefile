@@ -23,7 +23,8 @@ haribote.img : haribote/ipl11.bin haribote/haribote.sys Makefile \
 		sosu/sosu.hrb sosu2/sosu2.hrb sosu3/sosu3.hrb \
 		type/type.hrb iroha/iroha.hrb chklang/chklang.hrb \
 		notrec/notrec.hrb bball/bball.hrb invader/invader.hrb \
-		calc/calc.hrb tview/tview.hrb mmlplay/mmlplay.hrb gview/gview.hrb
+		calc/calc.hrb tview/tview.hrb mmlplay/mmlplay.hrb gview/gview.hrb \
+		ebball/ebball.elf
 	$(EDIMG)   imgin:../z_tools/fdimg0at.tek \
 		wbinimg src:haribote/ipl11.bin len:512 from:0 to:0 \
 		copy from:haribote/haribote.sys to:@: \
@@ -66,6 +67,7 @@ haribote.img : haribote/ipl11.bin haribote/haribote.sys Makefile \
 		copy from:pictdata/fujisan.jpg to:@: \
 		copy from:pictdata/night.bmp to:@: \
 		copy from:nihongo/nihongo.fnt to:@: \
+		copy from:ebball/ebball.elf to:@: \
 		imgout:haribote.img
 
 # ƒRƒ}ƒ“ƒh
@@ -111,6 +113,7 @@ full :
 	$(MAKE) -C tview
 	$(MAKE) -C mmlplay
 	$(MAKE) -C gview
+	$(MAKE) -C ebball
 	$(MAKE) haribote.img
 
 run_full :
@@ -165,6 +168,7 @@ clean_full :
 	$(MAKE) -C tview		clean
 	$(MAKE) -C mmlplay		clean
 	$(MAKE) -C gview		clean
+	$(MAKE) -C ebball		clean
 
 src_only_full :
 	$(MAKE) -C haribote		src_only
@@ -198,6 +202,7 @@ src_only_full :
 	$(MAKE) -C tview		src_only
 	$(MAKE) -C mmlplay		src_only
 	$(MAKE) -C gview		src_only
+	$(MAKE) -C ebball		src_only
 	-$(DEL) haribote.img
 
 refresh :
