@@ -343,15 +343,13 @@ void cmd_langmode(struct CONSOLE *cons, char *cmdline)
 	return;
 }
 
-#define EHDR_TO_SHDR(ehdr) (Elf32_Shdr*)((char*)(ehdr) + (ehdr)->e_shoff)
-#define EHDR_TO_PHDR(ehdr) (Elf32_Phdr*)((char*)(ehdr) + (ehdr)->e_phoff)
 #define IS_DATA_SEGM(p_flags) (!((p_flags) & PF_X))
 
 static Elf32_Size calc_elf_datasize(Elf32_Ehdr* ehdr)
 {
 	Elf32_Addr max_vaddr = 0;
 	Elf32_Size datasize = 0;
-	Elf32_Phdr* phdr = EHDR_TO_PHDR(ehdr);
+	Elf32_Phdr* phdr = ELF_GET_PHDR(ehdr);
 	int i;
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if (IS_DATA_SEGM(phdr[i].p_flags) && max_vaddr < phdr[i].p_vaddr) {
@@ -364,7 +362,7 @@ static Elf32_Size calc_elf_datasize(Elf32_Ehdr* ehdr)
 
 static void copy_elf_data(void* datasegm, Elf32_Ehdr* ehdr)
 {
-	Elf32_Phdr* phdr = EHDR_TO_PHDR(ehdr);
+	Elf32_Phdr* phdr = ELF_GET_PHDR(ehdr);
 	int i;
 	for (i = 0; i < ehdr->e_phnum; i++) {
 		if (IS_DATA_SEGM(phdr[i].p_flags) && phdr[i].p_filesz > 0) {
@@ -377,15 +375,8 @@ static void copy_elf_data(void* datasegm, Elf32_Ehdr* ehdr)
 
 static Elf32_Size calc_elf_esp(Elf32_Ehdr* ehdr)
 {
-	Elf32_Shdr* shdr = EHDR_TO_SHDR(ehdr);
-	char* strtab = (char*)ehdr + shdr[ehdr->e_shstrndx].sh_offset;
-	int i;
-	for (i = 0; i < ehdr->e_shnum; i++) {
-		if (strcmp(".stack", strtab + shdr[i].sh_name) == 0) {
-			return shdr[i].sh_size;
-		}
-	}
-	return 0;
+	Elf32_Shdr* shdr = elf32_find_section(ehdr, ".stack");
+	return shdr ? shdr->sh_size : 0;
 }
 
 static void app_exec(struct TASK* task,
@@ -397,6 +388,7 @@ static void app_exec(struct TASK* task,
 	int i;
 	struct SHEET *sht;
 
+	task->cs_base = (int) text;
 	task->ds_base = (int) data;
 	set_segmdesc(task->ldt + 0, text_size - 1, (int) text, AR_CODE32_ER + 0x60);
 	set_segmdesc(task->ldt + 1, data_size - 1, (int) data, AR_DATA32_RW + 0x60);
@@ -492,10 +484,27 @@ elf_fin:;
 	return 0;
 }
 
+static struct MEMMAN* get_elf_memman(struct CONSOLE *cons, struct TASK* task, Elf32_Shdr** p_malloc_sec)
+{
+	Elf32_Ehdr* ehdr = (Elf32_Ehdr*) task->cs_base;
+	if (!IS_ELF(*ehdr)) {
+		return 0;
+	}
+	Elf32_Shdr* malloc_sec = elf32_find_section(ehdr, ".malloc");
+	if (p_malloc_sec) {
+		*p_malloc_sec = malloc_sec;
+	}
+	if (!malloc_sec) {
+		cons_putstr0(cons, "no malloc section\n");
+		return 0;
+	}
+	return (struct MEMMAN *) (malloc_sec->sh_addr + task->ds_base);
+}
+
 int *hrb_api(int edi, int esi, int ebp, int esp, int ebx, int edx, int ecx, int eax)
 {
 	struct TASK *task = task_now();
-	int ds_base = task->ds_base;
+	int cs_base = task->cs_base, ds_base = task->ds_base;
 	struct CONSOLE *cons = task->cons;
 	struct SHTCTL *shtctl = (struct SHTCTL *) *((int *) 0x0fe4);
 	struct SHEET *sht;
@@ -539,15 +548,39 @@ int *hrb_api(int edi, int esi, int ebp, int esp, int ebx, int edx, int ecx, int 
 			sheet_refresh(sht, eax, ecx, esi + 1, edi + 1);
 		}
 	} else if (edx == 8) {
-		memman_init((struct MEMMAN *) (ebx + ds_base));
-		ecx &= 0xfffffff0;	/* 16バイト単位に */
-		memman_free((struct MEMMAN *) (ebx + ds_base), eax, ecx);
+		Elf32_Ehdr* ehdr = (Elf32_Ehdr*)cs_base;
+		if (IS_ELF(*ehdr)) {
+			Elf32_Shdr* malloc_sec;
+			memman = get_elf_memman(cons, task, &malloc_sec);
+			if (!memman) {
+				return &(task->tss.esp0);
+			}
+			memman_init(memman);
+			Elf32_Addr dataarea = malloc_sec->sh_addr + 32 * 1024;
+			Elf32_Size datasize = calc_elf_datasize(ehdr) - dataarea;
+			datasize &= 0xfffffff0;	/* 16バイト単位に */
+			memman_free(memman, dataarea, datasize);
+		} else {
+			memman_init((struct MEMMAN *) (ebx + ds_base));
+			ecx &= 0xfffffff0;	/* 16バイト単位に */
+			memman_free((struct MEMMAN *) (ebx + ds_base), eax, ecx);
+		}
 	} else if (edx == 9) {
 		ecx = (ecx + 0x0f) & 0xfffffff0; /* 16バイト単位に切り上げ */
-		reg[7] = memman_alloc((struct MEMMAN *) (ebx + ds_base), ecx);
+		if (IS_ELF(*(Elf32_Ehdr*)cs_base)) {
+			memman = get_elf_memman(cons, task, 0);
+		} else {
+			memman = (struct MEMMAN *) (ebx + ds_base);
+		}
+		reg[7] = memman_alloc(memman, ecx);
 	} else if (edx == 10) {
 		ecx = (ecx + 0x0f) & 0xfffffff0; /* 16バイト単位に切り上げ */
-		memman_free((struct MEMMAN *) (ebx + ds_base), eax, ecx);
+		if (IS_ELF(*(Elf32_Ehdr*)cs_base)) {
+			memman = get_elf_memman(cons, task, 0);
+		} else {
+			memman = (struct MEMMAN *) (ebx + ds_base);
+		}
+		memman_free(memman, eax, ecx);
 	} else if (edx == 11) {
 		sht = (struct SHEET *) (ebx & 0xfffffffe);
 		sht->buf[sht->bxsize * edi + esi] = eax;

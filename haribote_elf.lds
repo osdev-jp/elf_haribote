@@ -15,4 +15,7 @@ SECTIONS
     *(.rodata*) *(.data)
   }
   .bss  : { *(.bss) }
+  .malloc : {
+    . += MALLOC;
+  }
 }

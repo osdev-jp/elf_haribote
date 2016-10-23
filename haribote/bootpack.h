@@ -212,7 +212,7 @@ struct TASK {
 	struct TSS32 tss;
 	struct SEGMENT_DESCRIPTOR ldt[2];
 	struct CONSOLE *cons;
-	int ds_base, cons_stack;
+	int cs_base, ds_base, cons_stack;
 	struct FILEHANDLE *fhandle;
 	int *fat;
 	char *cmdline;
