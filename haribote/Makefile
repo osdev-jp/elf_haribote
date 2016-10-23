@@ -23,13 +23,13 @@ DEL      = del
 # デフォルト動作
 
 default :
-	$(MAKE) ipl09.bin
+	$(MAKE) ipl11.bin
 	$(MAKE) haribote.sys
 
 # ファイル生成規則
 
-ipl09.bin : ipl09.nas Makefile
-	$(NASK) ipl09.nas ipl09.bin ipl09.lst
+ipl11.bin : ipl11.nas Makefile
+	$(NASK) ipl11.nas ipl11.bin ipl11.lst
 
 asmhead.bin : asmhead.nas Makefile
 	$(NASK) asmhead.nas asmhead.bin asmhead.lst
