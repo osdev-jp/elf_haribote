@@ -60,3 +60,11 @@ typedef struct {
 #define PF_X 1
 #define PF_W 2
 #define PF_R 4
+
+
+// Utilities
+
+#define ELF_GET_SHDR(ehdr) ((Elf32_Shdr*)((char*)(ehdr) + (ehdr)->e_shoff))
+#define ELF_GET_PHDR(ehdr) ((Elf32_Phdr*)((char*)(ehdr) + (ehdr)->e_phoff))
+#define ELF_GET_STRTAB(ehdr) ((char*)(ehdr) + ELF_GET_SHDR(ehdr)[(ehdr)->e_shstrndx].sh_offset)
+Elf32_Shdr* elf32_find_section(Elf32_Ehdr* ehdr, const char* secname);
