@@ -3,10 +3,12 @@
 *.iso
 *.img
 *.obj
+*.o
 *.bim
 *.lst
 *.map
 *.lib
+*.a
 a/a.org
 hello4/hello4.org
 hello5/hello5.org

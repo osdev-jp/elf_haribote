@@ -1,0 +1,70 @@
+TOOLPATH = ../../z_tools/
+INCPATH  = ../../z_tools/haribote/
+APILIBPATH   = ../apilib/
+HARIBOTEPATH = ../haribote/
+
+TOOLPATH86 = ../../../tolset_p86/z_tools/
+ELFGCCPATH = $(TOOLPATH86)i386-elf-gcc/bin/
+export PATH:=$(subst /,\,$(TOOLPATH86));$(ELFGCCPATH);$(PATH)
+
+MAKE     = $(TOOLPATH)make.exe -r
+MAKEFONT = $(TOOLPATH)makefont.exe
+EDIMG    = $(TOOLPATH)edimg.exe
+IMGTOL   = $(TOOLPATH)imgtol.com
+GOLIB    = $(TOOLPATH)golib00.exe 
+COPY     = copy
+DEL      = del
+
+NASM     = #(TOOLPATH86)nasm.exe
+CC       = $(ELFGCCPATH)i386-elf-gcc-4.9.2.exe -I$(INCPATH) -I../ -Os -Wall -fleading-underscore -fno-unwind-tables -fno-asynchronous-unwind-tables
+LD       = $(ELFGCCPATH)ld.exe -L$(APILIBPATH)
+LDSCRIPT = ../haribote_elf.lds
+
+
+# デフォルト動作
+
+default :
+	$(MAKE) $(APP).elf
+
+# ファイル生成規則
+
+$(APP).elf : $(APP).o $(APILIBPATH)libapi.a Makefile $(LDSCRIPT) ld_variables.lds ../app_make_elf.txt
+	$(LD) -T$(LDSCRIPT) -o $(APP).elf $(APP).o -lapi
+
+haribote.img : ../haribote/ipl11.bin ../haribote/haribote.sys $(APP).elf \
+		Makefile ../app_make.txt
+	$(EDIMG)   imgin:../../z_tools/fdimg0at.tek \
+		wbinimg src:../haribote/ipl11.bin len:512 from:0 to:0 \
+		copy from:../haribote/haribote.sys to:@: \
+		copy from:$(APP).elf to:@: \
+		copy from:../nihongo/nihongo.fnt to:@: \
+		imgout:haribote.img
+
+# 一般規則
+
+%.o : %.c ../apilib.h Makefile ../app_make_elf.txt
+	$(CC) -c -o $*.o $*.c
+
+# コマンド
+
+run :
+	$(MAKE) haribote.img
+	$(COPY) haribote.img ..\..\z_tools\qemu\fdimage0.bin
+	$(MAKE) -C ../../z_tools/qemu
+
+full :
+	$(MAKE) -C $(APILIBPATH)
+	$(MAKE) $(APP).elf
+
+run_full :
+	$(MAKE) -C $(APILIBPATH)
+	$(MAKE) -C ../haribote
+	$(MAKE) run
+
+clean :
+	-$(DEL) *.o
+	-$(DEL) haribote.img
+
+src_only :
+	$(MAKE) clean
+	-$(DEL) $(APP).elf

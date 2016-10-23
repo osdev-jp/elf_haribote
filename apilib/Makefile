@@ -5,6 +5,7 @@ OBJS_API =	api001.obj api002.obj api003.obj api004.obj api005.obj api006.obj \
 			api025.obj api026.obj api027.obj alloca.obj
 
 TOOLPATH = ../../z_tools/
+TOOLPATH86 = ../../../tolset_p86/z_tools/
 INCPATH  = ../../z_tools/haribote/
 
 MAKE     = $(TOOLPATH)make.exe -r
@@ -22,15 +23,20 @@ GOLIB    = $(TOOLPATH)golib00.exe
 COPY     = copy
 DEL      = del
 
+OBJCOPY  = $(TOOLPATH86)i386-elf-gcc/bin/objcopy.exe
+
 # デフォルト動作
 
 default :
-	$(MAKE) apilib.lib
+	$(MAKE) apilib.lib libapi.a
 
 # ファイル生成規則
 
 apilib.lib : Makefile $(OBJS_API)
 	$(GOLIB) $(OBJS_API) out:apilib.lib
+
+libapi.a : apilib.lib Makefile
+	$(OBJCOPY) -I coff-i386 apilib.lib -O elf32-i386 libapi.a
 
 # 一般規則
 
