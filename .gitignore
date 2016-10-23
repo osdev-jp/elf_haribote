@@ -1,4 +1,5 @@
 *.hrb
+*.elf
 *.bin
 *.iso
 *.img
