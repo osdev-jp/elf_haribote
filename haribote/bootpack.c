@@ -22,7 +22,7 @@ void HariMain(void)
 	struct MOUSE_DEC mdec;
 	struct MEMMAN *memman = (struct MEMMAN *) MEMMAN_ADDR;
 	unsigned char *buf_back, buf_mouse[256];
-	struct SHEET *sht_back, *sht_mouse;
+	struct SHEET *sht_back, *sht_mouse, *sht_cons;
 	struct TASK *task_a, *task;
 	static char keytable0[0x80] = {
 		0,   0,   '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '^', 0x08, 0,
@@ -84,7 +84,7 @@ void HariMain(void)
 	init_screen8(buf_back, binfo->scrnx, binfo->scrny);
 
 	/* sht_cons */
-	key_win = open_console(shtctl, memtotal);
+	sht_cons = key_win = open_console(shtctl, memtotal);
 
 	/* sht_mouse */
 	sht_mouse = sheet_alloc(shtctl);
@@ -123,6 +123,21 @@ void HariMain(void)
 		}
 	}
 	*((int *) 0x0fe8) = (int) nihongo;
+	
+	/* autoexec.bat ‚ª‚ ‚ê‚ÎA“à—e‚ð‚·‚×‚Ä console ‚É‘—M */
+	finfo = file_search("autoexec.bat", (struct FILEINFO *) (ADR_DISKIMG + 0x002600), 224);
+	if (finfo != 0) {
+		int real_size;
+		unsigned char *autoexec;
+		
+		i = finfo->size;
+		autoexec = file_loadfile2(finfo->clustno, &i, fat);
+		real_size = i;
+		for (i = 0; i < real_size; i++) {
+			fifo32_put(&sht_cons->task->fifo, autoexec[i] + 256);
+		}
+	}
+	
 	memman_free_4k(memman, (int) fat, 4 * 2880);
 
 	for (;;) {

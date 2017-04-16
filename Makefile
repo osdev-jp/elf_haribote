@@ -24,7 +24,8 @@ haribote.img : haribote/ipl11.bin haribote/haribote.sys Makefile \
 		type/type.hrb iroha/iroha.hrb chklang/chklang.hrb \
 		notrec/notrec.hrb bball/bball.hrb invader/invader.hrb \
 		calc/calc.hrb tview/tview.hrb mmlplay/mmlplay.hrb gview/gview.hrb \
-		ebball/ebball.elf einvader/einvader.elf elines/elines.elf
+		ebball/ebball.elf einvader/einvader.elf elines/elines.elf \
+		haribote/autoexec.bat
 	$(EDIMG)   imgin:../z_tools/fdimg0at.tek \
 		wbinimg src:haribote/ipl11.bin len:512 from:0 to:0 \
 		copy from:haribote/haribote.sys to:@: \
@@ -70,6 +71,7 @@ haribote.img : haribote/ipl11.bin haribote/haribote.sys Makefile \
 		copy from:ebball/ebball.elf to:@: \
 		copy from:einvader/einvader.elf to:@: \
 		copy from:elines/elines.elf to:@: \
+		copy from:haribote/autoexec.bat to:@: \
 		imgout:haribote.img
 
 # ƒRƒ}ƒ“ƒh
