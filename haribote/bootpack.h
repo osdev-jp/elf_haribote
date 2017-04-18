@@ -248,6 +248,7 @@ void change_wtitle8(struct SHEET *sht, char act);
 /* console.c */
 struct CONSOLE {
 	struct SHEET *sht;
+	int width, height;  // the number of characters
 	int cur_x, cur_y, cur_c;
 	struct TIMER *timer;
 };
@@ -256,7 +257,7 @@ struct FILEHANDLE {
 	int size;
 	int pos;
 };
-void console_task(struct SHEET *sheet, int memtotal);
+void console_task(struct SHEET *sheet, int memtotal, int width, int height);
 void cons_putchar(struct CONSOLE *cons, int chr, char move);
 void cons_newline(struct CONSOLE *cons);
 void cons_putstr0(struct CONSOLE *cons, char *s);
@@ -292,5 +293,5 @@ int tek_getsize(unsigned char *p);
 int tek_decomp(unsigned char *p, char *q, int size);
 
 /* bootpack.c */
-struct TASK *open_constask(struct SHEET *sht, unsigned int memtotal);
-struct SHEET *open_console(struct SHTCTL *shtctl, unsigned int memtotal);
+struct TASK *open_constask(struct SHEET *sht, unsigned int memtotal, int width, int height);
+struct SHEET *open_console(struct SHTCTL *shtctl, unsigned int memtotal, int width, int height);

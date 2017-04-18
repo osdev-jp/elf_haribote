@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void console_task(struct SHEET *sheet, int memtotal)
+void console_task(struct SHEET *sheet, int memtotal, int width, int height)
 {
 	struct TASK *task = task_now();
 	struct MEMMAN *memman = (struct MEMMAN *) MEMMAN_ADDR;
@@ -16,6 +16,8 @@ void console_task(struct SHEET *sheet, int memtotal)
 	unsigned char *nihongo = (char *) *((int *) 0x0fe8);
 
 	cons.sht = sheet;
+	cons.width = width;
+	cons.height = height;
 	cons.cur_x =  8;
 	cons.cur_y = 28;
 	cons.cur_c = -1;
@@ -100,7 +102,7 @@ void console_task(struct SHEET *sheet, int memtotal)
 					cons_putchar(&cons, '>', 1);
 				} else {
 					/* 一般文字 */
-					if (cons.cur_x < 240) {
+					if (cons.cur_x < cons.width * 30) {
 						/* 一文字表示してから、カーソルを1つ進める */
 						cmdline[cons.cur_x / 8 - 2] = i - 256;
 						cons_putchar(&cons, i - 256, 1);
@@ -130,7 +132,7 @@ void cons_putchar(struct CONSOLE *cons, int chr, char move)
 				putfouts8_asc_sht(cons->sht, cons->cur_x, cons->cur_y, COL8_FFFFFF, COL8_000000, " ", 1);
 			}
 			cons->cur_x += 8;
-			if (cons->cur_x == 8 + 240) {
+			if (cons->cur_x == 8 + 8 * cons->width) {
 				cons_newline(cons);
 			}
 			if (((cons->cur_x - 8) & 0x1f) == 0) {
@@ -148,7 +150,7 @@ void cons_putchar(struct CONSOLE *cons, int chr, char move)
 		if (move != 0) {
 			/* moveが0のときはカーソルを進めない */
 			cons->cur_x += 8;
-			if (cons->cur_x == 8 + 240) {
+			if (cons->cur_x == 8 + 8 * cons->width) {
 				cons_newline(cons);
 			}
 		}
@@ -161,22 +163,22 @@ void cons_newline(struct CONSOLE *cons)
 	int x, y;
 	struct SHEET *sheet = cons->sht;
 	struct TASK *task = task_now();
-	if (cons->cur_y < 28 + 112) {
+	if (cons->cur_y < 28 + 16 * (cons->height - 1)) {
 		cons->cur_y += 16; /* 次の行へ */
 	} else {
 		/* スクロール */
 		if (sheet != 0) {
-			for (y = 28; y < 28 + 112; y++) {
-				for (x = 8; x < 8 + 240; x++) {
+			for (y = 28; y < 28 + 16 * (cons->height - 1); y++) {
+				for (x = 8; x < 8 + 8 * cons->width; x++) {
 					sheet->buf[x + y * sheet->bxsize] = sheet->buf[x + (y + 16) * sheet->bxsize];
 				}
 			}
-			for (y = 28 + 112; y < 28 + 128; y++) {
-				for (x = 8; x < 8 + 240; x++) {
+			for (y = 28 + 16 * (cons->height - 1); y < 28 + 16 * cons->height; y++) {
+				for (x = 8; x < 8 + 8 * cons->width; x++) {
 					sheet->buf[x + y * sheet->bxsize] = COL8_000000;
 				}
 			}
-			sheet_refresh(sheet, 8, 28, 8 + 240, 28 + 128);
+			sheet_refresh(sheet, 8, 28, 8 + 8 * cons->width, 28 + 16 * cons->height);
 		}
 	}
 	cons->cur_x = 8;
@@ -246,7 +248,7 @@ void cmd_cls(struct CONSOLE *cons)
 			sheet->buf[x + y * sheet->bxsize] = COL8_000000;
 		}
 	}
-	sheet_refresh(sheet, 8, 28, 8 + 240, 28 + 128);
+	sheet_refresh(sheet, 8, 28, 8 + 8 * cons->width, 28 + 16 * cons->height);
 	cons->cur_y = 28;
 	return;
 }
@@ -302,7 +304,7 @@ void cmd_exit(struct CONSOLE *cons, int *fat)
 void cmd_start(struct CONSOLE *cons, char *cmdline, int memtotal)
 {
 	struct SHTCTL *shtctl = (struct SHTCTL *) *((int *) 0x0fe4);
-	struct SHEET *sht = open_console(shtctl, memtotal);
+	struct SHEET *sht = open_console(shtctl, memtotal, 80, 24);
 	struct FIFO32 *fifo = &sht->task->fifo;
 	int i;
 	sheet_slide(sht, 32, 4);
@@ -318,7 +320,7 @@ void cmd_start(struct CONSOLE *cons, char *cmdline, int memtotal)
 
 void cmd_ncst(struct CONSOLE *cons, char *cmdline, int memtotal)
 {
-	struct TASK *task = open_constask(0, memtotal);
+	struct TASK *task = open_constask(0, memtotal, 80, 24);
 	struct FIFO32 *fifo = &task->fifo;
 	int i;
 	/* コマンドラインに入力された文字列を、一文字ずつ新しいコンソールに入力 */
