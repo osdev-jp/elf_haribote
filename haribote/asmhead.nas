@@ -192,7 +192,8 @@ memcpy:
 GDT0:
 		RESB	8				; ヌルセレクタ
 		DW		0xffff,0x0000,0x9200,0x00cf	; 読み書き可能セグメント32bit
-		DW		0xffff,0x0000,0x9a28,0x0047	; 実行可能セグメント32bit（bootpack用）
+		;DW		0xffff,0x0000,0x9a28,0x0047	; 実行可能セグメント32bit（bootpack用）
+		DW		0xffff,0x0000,0x9a28,0x00cf	; 実行可能セグメント32bit（bootpack用）
 
 		DW		0
 GDTR0:

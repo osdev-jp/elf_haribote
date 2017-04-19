@@ -4,6 +4,21 @@
 #include "elf.h"
 #include <stdio.h>
 #include <string.h>
+#include "module.h"
+
+struct symbol_table_item {
+    const char *name;
+    unsigned int address;
+};
+
+#define SYM(name) { "_" ## #name, (unsigned int)&name + 0x280000 }
+static struct symbol_table_item symbol_table[] = {
+    SYM(hrb_print),
+    SYM(io_in8),
+    SYM(io_out8),
+    SYM(sprintf),
+    { NULL, 0 }
+};
 
 void console_task(struct SHEET *sheet, int memtotal, int width, int height)
 {
@@ -221,6 +236,8 @@ void cons_runcmd(char *cmdline, struct CONSOLE *cons, int *fat, int memtotal)
 		cmd_ncst(cons, cmdline, memtotal);
 	} else if (strncmp(cmdline, "langmode ", 9) == 0) {
 		cmd_langmode(cons, cmdline);
+	} else if (strncmp(cmdline, "insmod ", 7) == 0) {
+		cmd_insmod(cons, fat, cmdline);
 	} else if (cmdline[0] != 0) {
 		if (cmd_app(cons, fat, cmdline) == 0) {
 			/* コマンドではなく、アプリでもなく、さらに空行でもない */
@@ -341,6 +358,122 @@ void cmd_langmode(struct CONSOLE *cons, char *cmdline)
 	} else {
 		cons_putstr0(cons, "mode number error.\n");
 	}
+	cons_newline(cons);
+	return;
+}
+
+void cmd_insmod(struct CONSOLE *cons, int *fat, char *cmdline)
+{
+	char *filename = cmdline + 7;
+	int modsize;
+	unsigned char *modbuf;
+	Elf32_Ehdr *hdr;
+	struct FILEINFO *finfo;
+	int i, j;
+	int this_module_index, strtab_index, symtab_index, text_index;
+	Elf32_Shdr *shdr;
+	struct module *this_module;
+	char s[256], *strtab;
+	Elf32_Sym *symtab;
+	const int cs_base = 0x280000;
+
+	/* ファイルを探す */
+	finfo = file_search(filename, (struct FILEINFO *) (ADR_DISKIMG + 0x002600), 224);
+
+	if (finfo == 0) {
+		cons_putstr0(cons, "no such file: ");
+		cons_putstr0(cons, filename);
+		return;
+	}
+
+	/* ファイルが見つかった場合 */
+	modsize = finfo->size;
+	modbuf = file_loadfile2(finfo->clustno, &modsize, fat);
+
+	hdr = (Elf32_Ehdr *)modbuf;
+	if (!IS_ELF(*hdr)) {
+		cons_putstr0(cons, "not a elf binary\n");
+		return;
+	}
+
+	sprintf(s, "modbuf %p, size %d\n", modbuf, modsize);
+	cons_putstr0(cons, s);
+
+	shdr = ELF_GET_SHDR(hdr);
+	strtab_index = elf32_find_section(hdr, ".strtab") - shdr;
+	strtab = modbuf + shdr[strtab_index].sh_offset;
+	symtab_index = elf32_find_section(hdr, ".symtab") - shdr;
+	symtab = (Elf32_Sym *)(modbuf + shdr[symtab_index].sh_offset);
+	text_index = elf32_find_section(hdr, ".text") - shdr;
+	this_module_index = elf32_find_section(hdr, ".this_module") - shdr;
+	if (this_module_index == 0) {
+		cons_putstr0(cons, "not found .this_module\n");
+		return;
+	}
+
+	this_module = (struct module *)(modbuf + shdr[this_module_index].sh_offset);
+
+	sprintf(s, "init %p, exit %p, hrb_print %p\n", this_module->init, this_module->exit, &hrb_print);
+	cons_putstr0(cons, s);
+
+	// .rel, .rela を探してリロケーション処理
+	for (i = 1; i < hdr->e_shnum; i++) {
+		Elf32_Shdr *rel_section = ELF_GET_SHDR(hdr) + i;
+		char *rel_section_name = ELF_GET_SHSTRTAB(hdr) + rel_section->sh_name;
+		if (strncmp(".rel.", rel_section_name, 5) == 0) {
+			Elf32_Shdr *target_section = elf32_find_section(hdr, rel_section_name + 4);
+			char *target_section_name = ELF_GET_SHSTRTAB(hdr) + target_section->sh_name;
+			sprintf(s, "rel %s, tgt %s (off 0x%x)\n", rel_section_name, target_section_name, target_section->sh_offset);
+			cons_putstr0(cons, s);
+
+			Elf32_Rel *rel = (Elf32_Rel *)(modbuf + rel_section->sh_offset);
+			for (j = 0; j < rel_section->sh_size / sizeof(Elf32_Rel); j++) {
+				int sym_index = ELF_R_SYM(rel[j].r_info);
+				int r_type = ELF_R_TYPE(rel[j].r_info);
+				unsigned int *r_position = (unsigned int *)(modbuf + target_section->sh_offset + rel[j].r_offset);
+				unsigned int r_value = 0;
+				const char *sym_name = strtab + symtab[sym_index].st_name;
+
+				sprintf(s, "off %08x, inf %08x, sym %d %s\n", rel[j].r_offset, rel[j].r_info, sym_index, strtab + symtab[sym_index].st_name);
+				cons_putstr0(cons, s);
+
+				if (symtab[sym_index].st_shndx == 0) {
+					// undefined symbol
+					struct symbol_table_item *sym = symbol_table;
+					while (sym->name != NULL) {
+						if (strcmp(sym->name, sym_name) == 0) {
+							break;
+						}
+						sym++;
+					}
+					if (sym->name == NULL) {
+						sprintf(s, "refers to unknown symbol %s\n", sym_name);
+						cons_putstr0(cons, s);
+						return;
+					}
+					r_value = sym->address;
+				} else {
+					r_value = modbuf + shdr[symtab[sym_index].st_shndx].sh_offset + symtab[sym_index].st_value;
+				}
+
+				sprintf(s, "pos %08x, val %08x\n", r_position, r_value);
+				cons_putstr0(cons, s);
+
+				switch (r_type) {
+				case R_386_32: *r_position += r_value; break;
+				case R_386_PC32: *r_position += r_value - (unsigned int)r_position; break;
+				}
+			}
+		}
+	}
+
+	this_module->init -= 0x280000;
+	this_module->exit -= 0x280000;
+	//sprintf(s, "mod->init %p, *default_console %p, hrb_print %p\n", this_module->init, *default_console, hrb_print);
+	//cons_putstr0(cons, s);
+
+	this_module->init();
+
 	cons_newline(cons);
 	return;
 }

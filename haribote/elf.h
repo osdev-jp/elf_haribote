@@ -4,6 +4,7 @@
 
 typedef unsigned short int Elf32_Half;
 typedef unsigned int Elf32_Word;
+typedef signed int Elf32_Sword;
 typedef unsigned int Elf32_Addr;
 typedef unsigned int Elf32_Off;
 typedef unsigned int Elf32_Size;
@@ -61,10 +62,36 @@ typedef struct {
 #define PF_W 2
 #define PF_R 4
 
+typedef struct {
+	Elf32_Word st_name;
+	Elf32_Addr st_value;
+	Elf32_Size st_size;
+	unsigned char st_info;
+	unsigned char st_other;
+	Elf32_Half st_shndx;
+} Elf32_Sym;
+
+typedef struct {
+	Elf32_Addr r_offset;
+	Elf32_Word r_info;
+} Elf32_Rel;
+
+typedef struct {
+	Elf32_Addr r_offset;
+	Elf32_Word r_info;
+	Elf32_Sword r_addend;
+} Elf32_Rela;
+
+#define ELF_R_SYM(r_info) (((r_info) & 0xffffff00u) >> 8u)
+#define ELF_R_TYPE(r_info) ((r_info) & 0x000000ffu)
+
+#define R_386_NONE 0
+#define R_386_32 1
+#define R_386_PC32 2
 
 // Utilities
 
 #define ELF_GET_SHDR(ehdr) ((Elf32_Shdr*)((char*)(ehdr) + (ehdr)->e_shoff))
 #define ELF_GET_PHDR(ehdr) ((Elf32_Phdr*)((char*)(ehdr) + (ehdr)->e_phoff))
-#define ELF_GET_STRTAB(ehdr) ((char*)(ehdr) + ELF_GET_SHDR(ehdr)[(ehdr)->e_shstrndx].sh_offset)
+#define ELF_GET_SHSTRTAB(ehdr) ((char*)(ehdr) + ELF_GET_SHDR(ehdr)[(ehdr)->e_shstrndx].sh_offset)
 Elf32_Shdr* elf32_find_section(Elf32_Ehdr* ehdr, const char* secname);

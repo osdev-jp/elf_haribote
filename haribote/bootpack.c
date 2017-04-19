@@ -10,6 +10,8 @@ void keywin_on(struct SHEET *key_win);
 void close_console(struct SHEET *sht);
 void close_constask(struct TASK *task);
 
+struct CONSOLE **default_console;
+
 void HariMain(void)
 {
 	struct BOOTINFO *binfo = (struct BOOTINFO *) ADR_BOOTINFO;
@@ -66,7 +68,7 @@ void HariMain(void)
 
 	memtotal = memtest(0x00400000, 0xbfffffff);
 	memman_init(memman);
-	memman_free(memman, 0x00001000, 0x0009e000); /* 0x00001000 - 0x0009efff */
+	//memman_free(memman, 0x00001000, 0x0009e000); /* 0x00001000 - 0x0009efff */
 	memman_free(memman, 0x00400000, memtotal - 0x00400000);
 
 	init_palette();
@@ -85,6 +87,7 @@ void HariMain(void)
 
 	/* sht_cons */
 	sht_cons = key_win = open_console(shtctl, memtotal, 80, 24);
+	default_console = &sht_cons->task->cons;
 
 	/* sht_mouse */
 	sht_mouse = sheet_alloc(shtctl);
@@ -430,4 +433,9 @@ void close_console(struct SHEET *sht)
 	sheet_free(sht);
 	close_constask(task);
 	return;
+}
+
+int hrb_print(const char *s)
+{
+	cons_putstr0(*default_console, s);
 }

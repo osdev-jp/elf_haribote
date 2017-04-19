@@ -21,6 +21,16 @@ HARITOL  = $(TOOLPATH)haritol
 
 CLEAN_FILES := $(wildcard *.lst *.obj *.map *.bim *.hrb)
 
+
+#TOOLPATH86 = ../../../tolset_p86/z_tools/
+#ELFGCCPATH = $(TOOLPATH86)i386-elf-gcc/bin/
+ELFGCCPATH = $(HOME)/gcc-6.3.0/i386-elf-gcc/bin/
+export PATH:=$(subst /,\,$(TOOLPATH86));$(ELFGCCPATH);$(PATH)
+
+CC       = $(ELFGCCPATH)i386-elf-gcc -I$(INCPATH) -I../ -Os -Wall -fleading-underscore -fno-unwind-tables -fno-asynchronous-unwind-tables
+LD       = $(ELFGCCPATH)i386-elf-ld -L$(APILIBPATH) --nmagic
+
+
 # デフォルト動作
 
 default :
@@ -51,6 +61,10 @@ bootpack.hrb : bootpack.bim Makefile
 
 haribote.sys : asmhead.bin bootpack.hrb Makefile
 	$(HARITOL) concat haribote.sys asmhead.bin bootpack.hrb
+
+hello.ko : hello.c Makefile
+	$(CC) -c hello.c
+	$(HARITOL) copy hello.o hello.ko
 
 # 一般規則
 

@@ -93,7 +93,7 @@ void set_gatedesc(struct GATE_DESCRIPTOR *gd, int offset, int selector, int ar);
 #define ADR_GDT			0x00270000
 #define LIMIT_GDT		0x0000ffff
 #define ADR_BOTPAK		0x00280000
-#define LIMIT_BOTPAK	0x0007ffff
+#define LIMIT_BOTPAK	(0xffffffff - ADR_BOTPAK)
 #define AR_DATA32_RW	0x4092
 #define AR_CODE32_ER	0x409a
 #define AR_LDT			0x0082
@@ -270,6 +270,7 @@ void cmd_exit(struct CONSOLE *cons, int *fat);
 void cmd_start(struct CONSOLE *cons, char *cmdline, int memtotal);
 void cmd_ncst(struct CONSOLE *cons, char *cmdline, int memtotal);
 void cmd_langmode(struct CONSOLE *cons, char *cmdline);
+void cmd_insmod(struct CONSOLE *cons, int *fat, char *cmdline);
 int cmd_app(struct CONSOLE *cons, int *fat, char *cmdline);
 int *hrb_api(int edi, int esi, int ebp, int esp, int ebx, int edx, int ecx, int eax);
 int *inthandler0d(int *esp);
@@ -295,3 +296,5 @@ int tek_decomp(unsigned char *p, char *q, int size);
 /* bootpack.c */
 struct TASK *open_constask(struct SHEET *sht, unsigned int memtotal, int width, int height);
 struct SHEET *open_console(struct SHTCTL *shtctl, unsigned int memtotal, int width, int height);
+extern struct CONSOLE **default_console;
+int hrb_print(const char *s);
