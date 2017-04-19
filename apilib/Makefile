@@ -25,12 +25,12 @@ DEL      = del
 
 OBJCOPY  = $(TOOLPATH86)i386-elf-gcc/bin/objcopy.exe
 
-# ƒfƒtƒHƒ‹ƒg“®ì
+# ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆå‹•ä½œ
 
 default :
 	$(MAKE) apilib.lib libapi.a
 
-# ƒtƒ@ƒCƒ‹¶¬‹K‘¥
+# ãƒ•ã‚¡ã‚¤ãƒ«ç”Ÿæˆè¦å‰‡
 
 apilib.lib : Makefile $(OBJS_API)
 	$(GOLIB) $(OBJS_API) out:apilib.lib
@@ -38,12 +38,12 @@ apilib.lib : Makefile $(OBJS_API)
 libapi.a : apilib.lib Makefile
 	$(OBJCOPY) -I coff-i386 apilib.lib -O elf32-i386 libapi.a
 
-# ˆê”Ê‹K‘¥
+# ä¸€èˆ¬è¦å‰‡
 
 %.obj : %.nas Makefile
 	$(NASK) $*.nas $*.obj $*.lst
 
-# ƒRƒ}ƒ“ƒh
+# ã‚³ãƒãƒ³ãƒ‰
 
 clean :
 	-$(DEL) *.lst

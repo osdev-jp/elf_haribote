@@ -21,12 +21,12 @@ LD       = $(ELFGCCPATH)ld.exe -L$(APILIBPATH) --nmagic
 LDSCRIPT = ../haribote_elf.lds
 
 
-# ƒfƒtƒHƒ‹ƒg“®ì
+# ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆå‹•ä½œ
 
 default :
 	$(MAKE) $(APP).elf
 
-# ƒtƒ@ƒCƒ‹¶¬‹K‘¥
+# ãƒ•ã‚¡ã‚¤ãƒ«ç”Ÿæˆè¦å‰‡
 
 $(APP).elf : $(APP).o $(APILIBPATH)libapi.a Makefile $(LDSCRIPT) ld_variables.lds ../app_make_elf.txt
 	$(LD) -T$(LDSCRIPT) -o $(APP).elf $(APP).o -lapi
@@ -40,12 +40,12 @@ haribote.img : ../haribote/ipl11.bin ../haribote/haribote.sys $(APP).elf \
 		copy from:../nihongo/nihongo.fnt to:@: \
 		imgout:haribote.img
 
-# ˆê”Ê‹K‘¥
+# ä¸€èˆ¬è¦å‰‡
 
 %.o : %.c ../apilib.h Makefile ../app_make_elf.txt
 	$(CC) -c -o $*.o $*.c
 
-# ƒRƒ}ƒ“ƒh
+# ã‚³ãƒãƒ³ãƒ‰
 
 run :
 	$(MAKE) haribote.img
