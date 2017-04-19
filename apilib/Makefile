@@ -5,25 +5,28 @@ OBJS_API =	api001.obj api002.obj api003.obj api004.obj api005.obj api006.obj \
 			api025.obj api026.obj api027.obj alloca.obj
 
 TOOLPATH = ../../z_tools/
-TOOLPATH86 = ../../../tolset_p86/z_tools/
+#TOOLPATH86 = ../../../tolset_p86/z_tools/
 INCPATH  = ../../z_tools/haribote/
 
-MAKE     = $(TOOLPATH)make.exe -r
-NASK     = $(TOOLPATH)nask.exe
-CC1      = $(TOOLPATH)cc1.exe -I$(INCPATH) -Os -Wall -quiet
-GAS2NASK = $(TOOLPATH)gas2nask.exe -a
-OBJ2BIM  = $(TOOLPATH)obj2bim.exe
-MAKEFONT = $(TOOLPATH)makefont.exe
-BIN2OBJ  = $(TOOLPATH)bin2obj.exe
-BIM2HRB  = $(TOOLPATH)bim2hrb.exe
+MAKE     = $(TOOLPATH)make -r
+NASK     = $(TOOLPATH)nask
+CC1      = $(TOOLPATH)gocc1 -I$(INCPATH) -Os -Wall -quiet
+GAS2NASK = $(TOOLPATH)gas2nask -a
+OBJ2BIM  = $(TOOLPATH)obj2bim
+MAKEFONT = $(TOOLPATH)makefont
+BIN2OBJ  = $(TOOLPATH)bin2obj
+BIM2HRB  = $(TOOLPATH)bim2hrb
 RULEFILE = ../haribote.rul
-EDIMG    = $(TOOLPATH)edimg.exe
-IMGTOL   = $(TOOLPATH)imgtol.com
-GOLIB    = $(TOOLPATH)golib00.exe 
-COPY     = copy
-DEL      = del
+EDIMG    = $(TOOLPATH)edimg
+GOLIB    = $(TOOLPATH)golib00
+HARITOL  = $(TOOLPATH)haritol
+COPY     = $(HARITOL) copy
+DEL      = $(HARITOL) remove
 
-OBJCOPY  = $(TOOLPATH86)i386-elf-gcc/bin/objcopy.exe
+#OBJCOPY  = $(TOOLPATH86)i386-elf-gcc/bin/i386-elf-objcopy
+OBJCOPY  = $(HOME)/gcc-6.3.0/i386-elf-gcc/bin/i386-elf-objcopy
+
+CLEAN_FILES := $(wildcard *.lst *.obj)
 
 # デフォルト動作
 
@@ -36,7 +39,7 @@ apilib.lib : Makefile $(OBJS_API)
 	$(GOLIB) $(OBJS_API) out:apilib.lib
 
 libapi.a : apilib.lib Makefile
-	$(OBJCOPY) -I coff-i386 apilib.lib -O elf32-i386 libapi.a
+	$(OBJCOPY) apilib.lib -I coff-i386 -O elf32-i386 libapi.a
 
 # 一般規則
 
@@ -46,8 +49,7 @@ libapi.a : apilib.lib Makefile
 # コマンド
 
 clean :
-	-$(DEL) *.lst
-	-$(DEL) *.obj
+	-$(DEL) $(CLEAN_FILES)
 
 src_only :
 	$(MAKE) clean

@@ -3,23 +3,26 @@ INCPATH  = ../../z_tools/haribote/
 APILIBPATH   = ../apilib/
 HARIBOTEPATH = ../haribote/
 
-TOOLPATH86 = ../../../tolset_p86/z_tools/
-ELFGCCPATH = $(TOOLPATH86)i386-elf-gcc/bin/
+#TOOLPATH86 = ../../../tolset_p86/z_tools/
+#ELFGCCPATH = $(TOOLPATH86)i386-elf-gcc/bin/
+ELFGCCPATH = $(HOME)/gcc-6.3.0/i386-elf-gcc/bin/
 export PATH:=$(subst /,\,$(TOOLPATH86));$(ELFGCCPATH);$(PATH)
 
-MAKE     = $(TOOLPATH)make.exe -r
-MAKEFONT = $(TOOLPATH)makefont.exe
-EDIMG    = $(TOOLPATH)edimg.exe
-IMGTOL   = $(TOOLPATH)imgtol.com
-GOLIB    = $(TOOLPATH)golib00.exe 
-COPY     = copy
-DEL      = del
+MAKE     = $(TOOLPATH)make -r
+MAKEFONT = $(TOOLPATH)makefont
+EDIMG    = $(TOOLPATH)edimg
+GOLIB    = $(TOOLPATH)golib00
+HARITOL  = $(TOOLPATH)haritol
+COPY     = $(HARITOL) copy
+DEL      = $(HARITOL) remove
 
-NASM     = #(TOOLPATH86)nasm.exe
-CC       = $(ELFGCCPATH)i386-elf-gcc-4.9.2.exe -I$(INCPATH) -I../ -Os -Wall -fleading-underscore -fno-unwind-tables -fno-asynchronous-unwind-tables
-LD       = $(ELFGCCPATH)ld.exe -L$(APILIBPATH) --nmagic
+#NASM     = $(TOOLPATH86)nasm
+NASM     = nasm
+CC       = $(ELFGCCPATH)i386-elf-gcc -I$(INCPATH) -I../ -Os -Wall -fleading-underscore -fno-unwind-tables -fno-asynchronous-unwind-tables
+LD       = $(ELFGCCPATH)i386-elf-ld -L$(APILIBPATH) --nmagic
 LDSCRIPT = ../haribote_elf.lds
 
+CLEAN_FILES := $(wildcard *.o haribote.img)
 
 # デフォルト動作
 
@@ -29,7 +32,7 @@ default :
 # ファイル生成規則
 
 $(APP).elf : $(APP).o $(APILIBPATH)libapi.a Makefile $(LDSCRIPT) ld_variables.lds ../app_make_elf.txt
-	$(LD) -T$(LDSCRIPT) -o $(APP).elf $(APP).o -lapi
+	$(LD) --no-check-sections -T$(LDSCRIPT) -o $(APP).elf $(APP).o -lapi
 
 haribote.img : ../haribote/ipl11.bin ../haribote/haribote.sys $(APP).elf \
 		Makefile ../app_make.txt
@@ -62,8 +65,7 @@ run_full :
 	$(MAKE) run
 
 clean :
-	-$(DEL) *.o
-	-$(DEL) haribote.img
+	-$(DEL) $(CLEAN_FILES)
 
 src_only :
 	$(MAKE) clean
